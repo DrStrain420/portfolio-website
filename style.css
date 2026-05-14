@@ -1,0 +1,4 @@
+body { background-color: #0f172a; color: white; font-family: 'Inter', sans-serif; }
+.gradient-text { color: #3b82f6; }
+.fade-in { opacity: 0; transition: opacity 1s; }
+.visible { opacity: 1; }
