@@ -62,7 +62,7 @@ fileInput.addEventListener('change', (e) => {
 [thresholdSlider, contrastSlider, resolutionSlider, blurSlider, glowSlider, tonalSlider].forEach(slider => {
     slider.addEventListener('input', (e) => {
         document.getElementById(`${e.target.id}-val`).textContent = e.target.value;
-        if (originalImage) requestAnimationFrame(renderPreview);
+        if (originalImage) requestAnimationFrame(processImage);
     });
 });
 
@@ -90,14 +90,29 @@ downloadBtn.addEventListener('click', () => {
 btnOriginal.addEventListener('click', () => {
     btnOriginal.classList.add('active');
     btnDithered.classList.remove('active');
-    canvas.style.opacity = '0';
+    canvas.style.display = 'none';
 });
 
 btnDithered.addEventListener('click', () => {
     btnDithered.classList.add('active');
     btnOriginal.classList.remove('active');
-    canvas.style.opacity = '1';
+    canvas.style.display = 'block';
 });
+
+// --- Reset ---
+const resetBtn = document.getElementById('reset-btn');
+if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        thresholdSlider.value = 128; document.getElementById('threshold-val').textContent = '128';
+        contrastSlider.value = 0; document.getElementById('contrast-val').textContent = '0';
+        resolutionSlider.value = 1; document.getElementById('resolution-val').textContent = '1';
+        tonalSlider.value = 0; document.getElementById('tonal-val').textContent = '0';
+        blurSlider.value = 0; document.getElementById('blur-val').textContent = '0';
+        glowSlider.value = 0; document.getElementById('glow-val').textContent = '0';
+        shapeInput.value = 'default';
+        if (originalImage) processImage();
+    });
+}
 
 // --- Core Logic ---
 
@@ -110,7 +125,7 @@ function handleFile(file) {
             originalImage = img;
             canvasContainer.style.display = 'flex';
             downloadBtn.disabled = false;
-            renderPreview();
+            processImage();
             btnDithered.click();
         };
         img.src = e.target.result;
@@ -182,8 +197,11 @@ function processDitherSync(imageData, threshold, contrast, shape, tonal) {
     return imageData;
 }
 
-function renderPreview() {
+function processImage() {
     if (!originalImage) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    origCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
 
     let previewWidth = originalImage.width;
     let previewHeight = originalImage.height;
@@ -210,6 +228,8 @@ function renderPreview() {
     offCanvas.width = processCols;
     offCanvas.height = processRows;
     const offCtx = offCanvas.getContext('2d');
+    
+    offCtx.clearRect(0, 0, processCols, processRows);
     
     // 1. Pre-Dither Blur
     const blurAmount = parseInt(blurSlider.value);
