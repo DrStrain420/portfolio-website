@@ -34,8 +34,14 @@
         </section>
 
         <section class="preview-section">
-            <div class="canvas-container">
+            <div class="canvas-container" id="canvas-container" style="display:none;">
+                <canvas id="original-canvas"></canvas>
                 <canvas id="canvas"></canvas>
+                <div class="compare-label label-left" id="label-original">ORIGINAL</div>
+                <div class="compare-label label-right" id="label-dithered">DITHERED</div>
+                <div class="compare-slider" id="compare-slider">
+                    <div class="slider-handle"></div>
+                </div>
             </div>
         </section>
     </main>

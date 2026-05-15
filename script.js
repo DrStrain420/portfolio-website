@@ -1,7 +1,10 @@
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
+const canvasContainer = document.getElementById('canvas-container');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const originalCanvas = document.getElementById('original-canvas');
+const origCtx = originalCanvas.getContext('2d');
 const downloadBtn = document.getElementById('download-btn');
 
 const thresholdSlider = document.getElementById('threshold');
@@ -11,8 +14,13 @@ const contrastVal = document.getElementById('contrast-val');
 const resolutionSlider = document.getElementById('resolution');
 const resolutionVal = document.getElementById('resolution-val');
 
+const compareSlider = document.getElementById('compare-slider');
+const labelOriginal = document.getElementById('label-original');
+const labelDithered = document.getElementById('label-dithered');
+
 let originalImage = null;
 let maxCanvasWidth = 1600; 
+let isDragging = false;
 
 // --- Event Listeners ---
 
@@ -56,6 +64,43 @@ downloadBtn.addEventListener('click', () => {
     link.click();
 });
 
+// --- Compare Slider Logic ---
+
+function updateSliderPosition(e) {
+    if (!isDragging) return;
+    const rect = canvasContainer.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    x = Math.max(0, Math.min(x, rect.width));
+    const percent = (x / rect.width) * 100;
+    
+    compareSlider.style.left = `${percent}%`;
+    canvas.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
+    
+    if (percent < 15) {
+        labelOriginal.classList.add('label-hidden');
+    } else {
+        labelOriginal.classList.remove('label-hidden');
+    }
+    if (percent > 85) {
+        labelDithered.classList.add('label-hidden');
+    } else {
+        labelDithered.classList.remove('label-hidden');
+    }
+}
+
+compareSlider.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    compareSlider.classList.add('dragging');
+    e.preventDefault(); // prevent text selection
+});
+
+window.addEventListener('mouseup', () => {
+    isDragging = false;
+    compareSlider.classList.remove('dragging');
+});
+
+window.addEventListener('mousemove', updateSliderPosition);
+
 // --- Core Logic ---
 
 function handleFile(file) {
@@ -66,7 +111,7 @@ function handleFile(file) {
         const img = new Image();
         img.onload = () => {
             originalImage = img;
-            canvas.style.display = 'block';
+            canvasContainer.style.display = 'block';
             downloadBtn.disabled = false;
             processImage();
         };
@@ -96,23 +141,25 @@ function processImage() {
 
     const resolution = parseInt(resolutionSlider.value);
     
+    // Scale original canvas
+    originalCanvas.width = width;
+    originalCanvas.height = height;
+    origCtx.drawImage(originalImage, 0, 0, width, height);
+
     // Calculate downscaled dimensions
     const downWidth = Math.max(1, Math.floor(width / resolution));
     const downHeight = Math.max(1, Math.floor(height / resolution));
 
-    // Create an offscreen canvas for downscaled processing
     const offCanvas = document.createElement('canvas');
     offCanvas.width = downWidth;
     offCanvas.height = downHeight;
     const offCtx = offCanvas.getContext('2d');
     
-    // Draw and scale down
     offCtx.drawImage(originalImage, 0, 0, downWidth, downHeight);
     
     const imageData = offCtx.getImageData(0, 0, downWidth, downHeight);
     const data = imageData.data;
     
-    // 1. Grayscale & Contrast
     const contrast = parseInt(contrastSlider.value);
     if (contrast !== 0) {
         applyContrast(data, contrast);
@@ -124,7 +171,6 @@ function processImage() {
         data[i] = data[i+1] = data[i+2] = gray;
     }
 
-    // 2. Floyd-Steinberg Dithering
     const threshold = parseInt(thresholdSlider.value);
     
     for (let y = 0; y < downHeight; y++) {
@@ -136,7 +182,6 @@ function processImage() {
             data[idx] = newPixel;
             data[idx+1] = newPixel;
             data[idx+2] = newPixel;
-            // maintain alpha
             data[idx+3] = 255;
             
             const quantError = oldPixel - newPixel;
@@ -170,11 +215,9 @@ function processImage() {
     
     offCtx.putImageData(imageData, 0, 0);
 
-    // Upscale to main canvas
     canvas.width = downWidth * resolution;
     canvas.height = downHeight * resolution;
     
-    // Disable smoothing for sharp pixels
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
 }
