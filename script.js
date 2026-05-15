@@ -14,13 +14,11 @@ const contrastVal = document.getElementById('contrast-val');
 const resolutionSlider = document.getElementById('resolution');
 const resolutionVal = document.getElementById('resolution-val');
 
-const compareSlider = document.getElementById('compare-slider');
-const labelOriginal = document.getElementById('label-original');
-const labelDithered = document.getElementById('label-dithered');
+const btnOriginal = document.getElementById('btn-original');
+const btnDithered = document.getElementById('btn-dithered');
 
 let originalImage = null;
 let maxCanvasWidth = 1600; 
-let isDragging = false;
 
 // --- Event Listeners ---
 
@@ -64,42 +62,18 @@ downloadBtn.addEventListener('click', () => {
     link.click();
 });
 
-// --- Compare Slider Logic ---
-
-function updateSliderPosition(e) {
-    if (!isDragging) return;
-    const rect = canvasContainer.getBoundingClientRect();
-    let x = e.clientX - rect.left;
-    x = Math.max(0, Math.min(x, rect.width));
-    const percent = (x / rect.width) * 100;
-    
-    compareSlider.style.left = `${percent}%`;
-    canvas.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
-    
-    if (percent < 15) {
-        labelOriginal.classList.add('label-hidden');
-    } else {
-        labelOriginal.classList.remove('label-hidden');
-    }
-    if (percent > 85) {
-        labelDithered.classList.add('label-hidden');
-    } else {
-        labelDithered.classList.remove('label-hidden');
-    }
-}
-
-compareSlider.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    compareSlider.classList.add('dragging');
-    e.preventDefault(); // prevent text selection
+// --- View Toggle Logic ---
+btnOriginal.addEventListener('click', () => {
+    btnOriginal.classList.add('active');
+    btnDithered.classList.remove('active');
+    canvas.style.opacity = '0';
 });
 
-window.addEventListener('mouseup', () => {
-    isDragging = false;
-    compareSlider.classList.remove('dragging');
+btnDithered.addEventListener('click', () => {
+    btnDithered.classList.add('active');
+    btnOriginal.classList.remove('active');
+    canvas.style.opacity = '1';
 });
-
-window.addEventListener('mousemove', updateSliderPosition);
 
 // --- Core Logic ---
 
@@ -114,6 +88,9 @@ function handleFile(file) {
             canvasContainer.style.display = 'block';
             downloadBtn.disabled = false;
             processImage();
+            
+            // Ensure Dithered view is active on upload
+            btnDithered.click();
         };
         img.src = e.target.result;
     };

@@ -31,7 +31,7 @@ body {
 .controls-section {
     display: flex;
     flex-direction: column;
-    gap: 4rem;
+    gap: 3rem;
 }
 
 .drop-zone {
@@ -98,6 +98,31 @@ input[type=range]::-webkit-slider-runnable-track {
     border: 2px solid var(--text-color);
 }
 
+.view-toggle {
+    display: flex;
+    border: var(--border-width) solid var(--text-color);
+    width: 100%;
+}
+
+.toggle-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--text-color);
+    border: none;
+    padding: 1rem;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.25rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.toggle-btn.active {
+    background: var(--text-color);
+    color: var(--bg-color);
+}
+
 .action-btn {
     margin-top: auto;
     background-color: transparent;
@@ -123,7 +148,7 @@ input[type=range]::-webkit-slider-runnable-track {
     cursor: not-allowed;
 }
 
-/* Preview Area & Slider */
+/* Preview Area */
 .preview-section {
     width: 100%;
     border: var(--border-width) solid var(--text-color);
@@ -137,72 +162,27 @@ input[type=range]::-webkit-slider-runnable-track {
 
 .canvas-container {
     position: relative;
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #original-canvas, #canvas {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 80vh;
+    object-fit: contain;
     display: block;
     image-rendering: pixelated;
-}
-
-#canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-    pointer-events: none;
-}
-
-.compare-label {
-    position: absolute;
-    top: 1rem;
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 1rem;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    padding: 0.25rem 0.5rem;
-    border: 2px solid var(--text-color);
-    transition: opacity 0.2s;
-    pointer-events: none;
-    z-index: 5;
-}
-
-.label-left { left: 1rem; }
-.label-right { right: 1rem; }
-.label-hidden { opacity: 0 !important; }
-
-.compare-slider {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    width: 2px;
-    height: 100%;
-    background-color: var(--text-color);
-    transform: translateX(-50%);
-    cursor: ew-resize;
-    z-index: 10;
-}
-
-.slider-handle {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 20px;
-    height: 20px;
-    background-color: var(--text-color);
-    border-radius: 50%;
     transform: translate(-50%, -50%);
-    transition: transform 0.2s;
 }
 
-.compare-slider:hover .slider-handle, .compare-slider.dragging .slider-handle {
-    transform: translate(-50%, -50%) scale(1.2);
+#canvas {
+    transition: opacity 0.2s ease;
 }
 
 @media (max-width: 900px) {
