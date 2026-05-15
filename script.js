@@ -8,38 +8,53 @@ const origCtx = originalCanvas.getContext('2d');
 const downloadBtn = document.getElementById('download-btn');
 
 const thresholdSlider = document.getElementById('threshold');
-const thresholdVal = document.getElementById('threshold-val');
 const contrastSlider = document.getElementById('contrast');
-const contrastVal = document.getElementById('contrast-val');
 const resolutionSlider = document.getElementById('resolution');
-const resolutionVal = document.getElementById('resolution-val');
+const shapeInput = document.getElementById('shape');
 
 const btnOriginal = document.getElementById('btn-original');
 const btnDithered = document.getElementById('btn-dithered');
 
+const presetNewsy = document.getElementById('preset-newsy');
+const presetGlitch = document.getElementById('preset-glitch');
+const preset1bit = document.getElementById('preset-1bit');
+
 let originalImage = null;
-let maxPreviewWidth = 1600; // Cap for real-time responsiveness
+let maxPreviewWidth = 1600;
 
-// --- Event Listeners ---
+// Setup Worker
+const ditherWorker = new Worker('worker.js');
 
-dropZone.addEventListener('click', () => fileInput.click());
+// --- Global Drag Feedback ---
+let dragCounter = 0;
 
-dropZone.addEventListener('dragover', (e) => {
+window.addEventListener('dragenter', (e) => {
     e.preventDefault();
-    dropZone.classList.add('dragover');
+    dragCounter++;
+    document.body.classList.add('global-drag-active');
 });
 
-dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('dragover');
+window.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter === 0) {
+        document.body.classList.remove('global-drag-active');
+    }
 });
 
-dropZone.addEventListener('drop', (e) => {
+window.addEventListener('dragover', (e) => {
     e.preventDefault();
-    dropZone.classList.remove('dragover');
+});
+
+window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    document.body.classList.remove('global-drag-active');
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
         handleFile(e.dataTransfer.files[0]);
     }
 });
+
+dropZone.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -47,6 +62,7 @@ fileInput.addEventListener('change', (e) => {
     }
 });
 
+// --- Sliders ---
 [thresholdSlider, contrastSlider, resolutionSlider].forEach(slider => {
     slider.addEventListener('input', (e) => {
         document.getElementById(`${e.target.id}-val`).textContent = e.target.value;
@@ -54,23 +70,47 @@ fileInput.addEventListener('change', (e) => {
     });
 });
 
+// --- Presets ---
+function applyPreset(threshold, contrast, resolution, shape) {
+    thresholdSlider.value = threshold;
+    document.getElementById('threshold-val').textContent = threshold;
+    
+    contrastSlider.value = contrast;
+    document.getElementById('contrast-val').textContent = contrast;
+    
+    resolutionSlider.value = resolution;
+    document.getElementById('resolution-val').textContent = resolution;
+    
+    shapeInput.value = shape;
+    
+    if (originalImage) renderPreview();
+}
+
+presetNewsy.addEventListener('click', () => applyPreset(160, -20, 8, 'circular'));
+presetGlitch.addEventListener('click', () => applyPreset(90, 80, 16, 'diamond'));
+preset1bit.addEventListener('click', () => applyPreset(128, 0, 4, 'default'));
+
+// --- Export Logic ---
 downloadBtn.addEventListener('click', () => {
     if (!originalImage) return;
     
-    // UI Feedback
     downloadBtn.disabled = true;
     const originalText = downloadBtn.textContent;
     downloadBtn.textContent = 'PROCESSING...';
     
-    // Yield thread to allow DOM to update button text before heavy processing
-    setTimeout(() => {
-        exportHighRes();
+    exportHighRes((url) => {
+        const link = document.createElement('a');
+        link.download = 'ditherer-export.png';
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+        
         downloadBtn.textContent = originalText;
         downloadBtn.disabled = false;
-    }, 50);
+    });
 });
 
-// --- View Toggle Logic ---
+// --- View Toggle ---
 btnOriginal.addEventListener('click', () => {
     btnOriginal.classList.add('active');
     btnDithered.classList.remove('active');
@@ -87,16 +127,14 @@ btnDithered.addEventListener('click', () => {
 
 function handleFile(file) {
     if (!file.type.match('image.*')) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
             originalImage = img;
-            canvasContainer.style.display = 'block';
+            canvasContainer.style.display = 'flex';
             downloadBtn.disabled = false;
             renderPreview();
-            
             btnDithered.click();
         };
         img.src = e.target.result;
@@ -104,7 +142,9 @@ function handleFile(file) {
     reader.readAsDataURL(file);
 }
 
-function applyContrast(data, contrast) {
+// Since preview needs to be fast, we duplicate the worker logic synchronously for the small canvas
+// to avoid async jitter on the sliders.
+function applyContrastSync(data, contrast) {
     const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
     for (let i = 0; i < data.length; i += 4) {
         data[i] = factor * (data[i] - 128) + 128;
@@ -113,14 +153,12 @@ function applyContrast(data, contrast) {
     }
 }
 
-function processDither(imageData, threshold, contrast) {
+function processDitherSync(imageData, threshold, contrast, shape) {
     const data = imageData.data;
     const width = imageData.width;
     const height = imageData.height;
     
-    if (contrast !== 0) {
-        applyContrast(data, contrast);
-    }
+    if (contrast !== 0) applyContrastSync(data, contrast);
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i+1], b = data[i+2];
@@ -128,41 +166,37 @@ function processDither(imageData, threshold, contrast) {
         data[i] = data[i+1] = data[i+2] = gray;
     }
 
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            const oldPixel = data[idx];
-            const newPixel = oldPixel < threshold ? 0 : 255;
-            
-            data[idx] = newPixel;
-            data[idx+1] = newPixel;
-            data[idx+2] = newPixel;
-            data[idx+3] = 255;
-            
-            const quantError = oldPixel - newPixel;
-            
-            if (x + 1 < width) {
-                data[idx + 4] += quantError * 7 / 16;
-                data[idx + 5] += quantError * 7 / 16;
-                data[idx + 6] += quantError * 7 / 16;
+    const bayer4x4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+    const cluster4x4 = [[12,5,6,13],[4,0,1,7],[11,3,2,8],[15,10,9,14]];
+
+    if (shape === 'diamond' || shape === 'circular') {
+        const matrix = shape === 'diamond' ? bayer4x4 : cluster4x4;
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                let adjustedGray = data[idx] + (128 - threshold); 
+                adjustedGray = Math.max(0, Math.min(255, adjustedGray));
+                const mValue = matrix[y % 4][x % 4] / 16.0 * 255;
+                const newPixel = adjustedGray > mValue ? 255 : 0;
+                data[idx] = data[idx+1] = data[idx+2] = newPixel;
+                data[idx+3] = 255;
             }
-            if (y + 1 < height) {
-                if (x - 1 >= 0) {
-                    const blIdx = ((y + 1) * width + (x - 1)) * 4;
-                    data[blIdx] += quantError * 3 / 16;
-                    data[blIdx + 1] += quantError * 3 / 16;
-                    data[blIdx + 2] += quantError * 3 / 16;
-                }
-                const bIdx = ((y + 1) * width + x) * 4;
-                data[bIdx] += quantError * 5 / 16;
-                data[bIdx + 1] += quantError * 5 / 16;
-                data[bIdx + 2] += quantError * 5 / 16;
-                
-                if (x + 1 < width) {
-                    const brIdx = ((y + 1) * width + (x + 1)) * 4;
-                    data[brIdx] += quantError * 1 / 16;
-                    data[brIdx + 1] += quantError * 1 / 16;
-                    data[brIdx + 2] += quantError * 1 / 16;
+        }
+    } else {
+        const floatData = new Float32Array(data);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const oldPixel = floatData[idx];
+                const newPixel = oldPixel < threshold ? 0 : 255;
+                data[idx] = data[idx+1] = data[idx+2] = newPixel;
+                data[idx+3] = 255;
+                const quantError = oldPixel - newPixel;
+                if (x + 1 < width) floatData[idx + 4] += quantError * 7 / 16;
+                if (y + 1 < height) {
+                    if (x - 1 >= 0) floatData[((y + 1) * width + (x - 1)) * 4] += quantError * 3 / 16;
+                    floatData[((y + 1) * width + x) * 4] += quantError * 5 / 16;
+                    if (x + 1 < width) floatData[((y + 1) * width + (x + 1)) * 4] += quantError * 1 / 16;
                 }
             }
         }
@@ -173,7 +207,6 @@ function processDither(imageData, threshold, contrast) {
 function renderPreview() {
     if (!originalImage) return;
 
-    // 1. Calculate the preview display size
     let previewWidth = originalImage.width;
     let previewHeight = originalImage.height;
     if (previewWidth > maxPreviewWidth) {
@@ -181,17 +214,14 @@ function renderPreview() {
         previewWidth = maxPreviewWidth;
     }
 
-    // Set background original canvas
     originalCanvas.width = previewWidth;
     originalCanvas.height = previewHeight;
     origCtx.drawImage(originalImage, 0, 0, previewWidth, previewHeight);
 
-    // 2. Calculate the processing block dimensions based on ORIGINAL scale
     const resolution = parseInt(resolutionSlider.value);
     let processCols = Math.max(1, Math.floor(originalImage.width / resolution));
     let processRows = Math.max(1, Math.floor(originalImage.height / resolution));
     
-    // For the preview, cap the processing columns to prevent UI lag on massive images
     if (processCols > maxPreviewWidth) {
         const scale = maxPreviewWidth / processCols;
         processCols = maxPreviewWidth;
@@ -205,29 +235,21 @@ function renderPreview() {
     offCtx.drawImage(originalImage, 0, 0, processCols, processRows);
     
     const imageData = offCtx.getImageData(0, 0, processCols, processRows);
-    
     const contrast = parseInt(contrastSlider.value);
     const threshold = parseInt(thresholdSlider.value);
+    const shape = shapeInput.value;
     
-    // Run the actual Dither math
-    const processedData = processDither(imageData, threshold, contrast);
+    const processedData = processDitherSync(imageData, threshold, contrast, shape);
     offCtx.putImageData(processedData, 0, 0);
 
-    // 3. Upscale sharply to the preview display size
     canvas.width = previewWidth;
     canvas.height = previewHeight;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(offCanvas, 0, 0, previewWidth, previewHeight);
 }
 
-function exportHighRes() {
-    if (!originalImage) return;
-
+function exportHighRes(callback) {
     const resolution = parseInt(resolutionSlider.value);
-    const contrast = parseInt(contrastSlider.value);
-    const threshold = parseInt(thresholdSlider.value);
-
-    // 1. Exact mathematical block dimensions relative to the original image size
     const processCols = Math.max(1, Math.floor(originalImage.width / resolution));
     const processRows = Math.max(1, Math.floor(originalImage.height / resolution));
 
@@ -239,26 +261,27 @@ function exportHighRes() {
 
     const imageData = offCtx.getImageData(0, 0, processCols, processRows);
     
-    // 2. Process full scale array
-    const processedData = processDither(imageData, threshold, contrast);
-    offCtx.putImageData(processedData, 0, 0);
+    // Offload to Web Worker
+    ditherWorker.onmessage = function(e) {
+        const processedData = e.data.processedData;
+        offCtx.putImageData(processedData, 0, 0);
+        
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = originalImage.width;
+        exportCanvas.height = originalImage.height;
+        const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.imageSmoothingEnabled = false;
+        exportCtx.drawImage(offCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+        
+        exportCanvas.toBlob((blob) => {
+            callback(URL.createObjectURL(blob));
+        }, 'image/png');
+    };
 
-    // 3. Create final exact-dimension export canvas
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = originalImage.width;
-    exportCanvas.height = originalImage.height;
-    const exportCtx = exportCanvas.getContext('2d');
-    
-    exportCtx.imageSmoothingEnabled = false;
-    exportCtx.drawImage(offCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
-    
-    // 4. Trigger download
-    exportCanvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = 'dithered-highres.png';
-        link.href = url;
-        link.click();
-        URL.revokeObjectURL(url);
-    }, 'image/png');
+    ditherWorker.postMessage({
+        imageData: imageData,
+        threshold: parseInt(thresholdSlider.value),
+        contrast: parseInt(contrastSlider.value),
+        shape: shapeInput.value
+    });
 }
