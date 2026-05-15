@@ -105,26 +105,58 @@ body.global-drag-active::after {
     line-height: 1.1;
 }
 
+/* UI Groups */
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.section-header {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.25rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--text-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
 .sliders {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
+}
+
+.slider-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
 }
 
 .slider-group label {
-    display: flex;
-    justify-content: space-between;
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
     text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
 }
 
 input[type=range] {
     -webkit-appearance: none;
     width: 100%;
     background: transparent;
+}
+
+.compact-sliders input[type=range] {
+    width: 60%;
+}
+
+.compact-sliders .slider-group label {
+    width: 60%;
 }
 
 input[type=range]::-webkit-slider-thumb {
@@ -150,14 +182,7 @@ input[type=range]::-webkit-slider-runnable-track {
 .presets {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-}
-
-.presets label {
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 1.1rem;
-    text-transform: uppercase;
+    gap: 1.5rem;
 }
 
 .preset-group {
@@ -189,7 +214,7 @@ input[type=range]::-webkit-slider-runnable-track {
     display: flex;
     border: var(--border-width) solid currentColor;
     width: 100%;
-    margin-top: auto;
+    margin-top: 1rem;
 }
 
 .toggle-btn {
@@ -223,6 +248,7 @@ input[type=range]::-webkit-slider-runnable-track {
     cursor: pointer;
     transition: all 0.2s;
     border-radius: 0;
+    margin-top: 1rem;
 }
 
 .action-btn:hover:not(:disabled) {
