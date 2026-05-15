@@ -3,46 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editorial Portfolio</title>
+    <title>DITHERER</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@400;700&family=Inter:wght@300;400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="site-header">
-        <div class="header-left">
-            <div class="globe-placeholder">
-                <img src="https://via.placeholder.com/80/000000/FFFFFF?text=Globe+GIF" alt="Globe Animation">
-            </div>
-        </div>
-        <div class="header-right">
-            <h1 class="site-title">PORTFOLIO</h1>
-            <nav class="site-nav">
-                <ul>
-                    <li><a href="#work">Work</a></li>
-                    <li><a href="#about">About</a></li>
-                    <li><a href="#contact">Contact</a></li>
-                </ul>
-            </nav>
-        </div>
+    <header class="app-header">
+        <h1>DITHERER</h1>
+        <p>A pure 1-bit Floyd-Steinberg error diffusion utility.</p>
     </header>
 
-    <main class="content-grid">
-        <section id="work" class="grid-section">
-            <div class="grid-col">
-                <h2>Featured Project</h2>
-                <p>A sophisticated editorial exploration of typography and whitespace. The content speaks for itself.</p>
+    <main class="app-layout">
+        <section class="controls-section">
+            <div id="drop-zone" class="drop-zone">
+                <p>DRAG & DROP IMAGE</p>
+                <p class="subtext">or click to browse</p>
+                <input type="file" id="file-input" accept="image/png, image/jpeg, image/webp" hidden>
             </div>
-            <div class="grid-col">
-                <div class="image-placeholder"></div>
+
+            <div class="sliders">
+                <div class="slider-group">
+                    <label for="threshold">THRESHOLD: <span id="threshold-val">128</span></label>
+                    <input type="range" id="threshold" min="1" max="255" value="128">
+                </div>
+                <div class="slider-group">
+                    <label for="contrast">CONTRAST: <span id="contrast-val">0</span></label>
+                    <input type="range" id="contrast" min="-100" max="100" value="0">
+                </div>
             </div>
+
+            <button id="download-btn" class="action-btn" disabled>DOWNLOAD PNG</button>
         </section>
 
-        <section id="about" class="grid-section">
-            <div class="grid-col full-width">
-                <h2>About the Studio</h2>
-                <p>Focusing on stark contrasts, precise grids, and typographic rigor. We build digital spaces that feel like print.</p>
+        <section class="preview-section">
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+                <div id="placeholder-text">PREVIEW</div>
             </div>
         </section>
     </main>
+
+    <script src="script.js"></script>
 </body>
 </html>
