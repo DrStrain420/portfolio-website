@@ -18,7 +18,7 @@ const btnOriginal = document.getElementById('btn-original');
 const btnDithered = document.getElementById('btn-dithered');
 
 let originalImage = null;
-let maxCanvasWidth = 1600; 
+let maxPreviewWidth = 1600; // Cap for real-time responsiveness
 
 // --- Event Listeners ---
 
@@ -50,16 +50,24 @@ fileInput.addEventListener('change', (e) => {
 [thresholdSlider, contrastSlider, resolutionSlider].forEach(slider => {
     slider.addEventListener('input', (e) => {
         document.getElementById(`${e.target.id}-val`).textContent = e.target.value;
-        if (originalImage) requestAnimationFrame(processImage);
+        if (originalImage) requestAnimationFrame(renderPreview);
     });
 });
 
 downloadBtn.addEventListener('click', () => {
     if (!originalImage) return;
-    const link = document.createElement('a');
-    link.download = 'dithered-image.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    
+    // UI Feedback
+    downloadBtn.disabled = true;
+    const originalText = downloadBtn.textContent;
+    downloadBtn.textContent = 'PROCESSING...';
+    
+    // Yield thread to allow DOM to update button text before heavy processing
+    setTimeout(() => {
+        exportHighRes();
+        downloadBtn.textContent = originalText;
+        downloadBtn.disabled = false;
+    }, 50);
 });
 
 // --- View Toggle Logic ---
@@ -87,9 +95,8 @@ function handleFile(file) {
             originalImage = img;
             canvasContainer.style.display = 'block';
             downloadBtn.disabled = false;
-            processImage();
+            renderPreview();
             
-            // Ensure Dithered view is active on upload
             btnDithered.click();
         };
         img.src = e.target.result;
@@ -106,38 +113,11 @@ function applyContrast(data, contrast) {
     }
 }
 
-function processImage() {
-    if (!originalImage) return;
-
-    let width = originalImage.width;
-    let height = originalImage.height;
-    if (width > maxCanvasWidth) {
-        height = Math.floor(height * (maxCanvasWidth / width));
-        width = maxCanvasWidth;
-    }
-
-    const resolution = parseInt(resolutionSlider.value);
-    
-    // Scale original canvas
-    originalCanvas.width = width;
-    originalCanvas.height = height;
-    origCtx.drawImage(originalImage, 0, 0, width, height);
-
-    // Calculate downscaled dimensions
-    const downWidth = Math.max(1, Math.floor(width / resolution));
-    const downHeight = Math.max(1, Math.floor(height / resolution));
-
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = downWidth;
-    offCanvas.height = downHeight;
-    const offCtx = offCanvas.getContext('2d');
-    
-    offCtx.drawImage(originalImage, 0, 0, downWidth, downHeight);
-    
-    const imageData = offCtx.getImageData(0, 0, downWidth, downHeight);
+function processDither(imageData, threshold, contrast) {
     const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
     
-    const contrast = parseInt(contrastSlider.value);
     if (contrast !== 0) {
         applyContrast(data, contrast);
     }
@@ -148,11 +128,9 @@ function processImage() {
         data[i] = data[i+1] = data[i+2] = gray;
     }
 
-    const threshold = parseInt(thresholdSlider.value);
-    
-    for (let y = 0; y < downHeight; y++) {
-        for (let x = 0; x < downWidth; x++) {
-            const idx = (y * downWidth + x) * 4;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
             const oldPixel = data[idx];
             const newPixel = oldPixel < threshold ? 0 : 255;
             
@@ -163,25 +141,25 @@ function processImage() {
             
             const quantError = oldPixel - newPixel;
             
-            if (x + 1 < downWidth) {
+            if (x + 1 < width) {
                 data[idx + 4] += quantError * 7 / 16;
                 data[idx + 5] += quantError * 7 / 16;
                 data[idx + 6] += quantError * 7 / 16;
             }
-            if (y + 1 < downHeight) {
+            if (y + 1 < height) {
                 if (x - 1 >= 0) {
-                    const blIdx = ((y + 1) * downWidth + (x - 1)) * 4;
+                    const blIdx = ((y + 1) * width + (x - 1)) * 4;
                     data[blIdx] += quantError * 3 / 16;
                     data[blIdx + 1] += quantError * 3 / 16;
                     data[blIdx + 2] += quantError * 3 / 16;
                 }
-                const bIdx = ((y + 1) * downWidth + x) * 4;
+                const bIdx = ((y + 1) * width + x) * 4;
                 data[bIdx] += quantError * 5 / 16;
                 data[bIdx + 1] += quantError * 5 / 16;
                 data[bIdx + 2] += quantError * 5 / 16;
                 
-                if (x + 1 < downWidth) {
-                    const brIdx = ((y + 1) * downWidth + (x + 1)) * 4;
+                if (x + 1 < width) {
+                    const brIdx = ((y + 1) * width + (x + 1)) * 4;
                     data[brIdx] += quantError * 1 / 16;
                     data[brIdx + 1] += quantError * 1 / 16;
                     data[brIdx + 2] += quantError * 1 / 16;
@@ -189,12 +167,98 @@ function processImage() {
             }
         }
     }
-    
-    offCtx.putImageData(imageData, 0, 0);
+    return imageData;
+}
 
-    canvas.width = downWidth * resolution;
-    canvas.height = downHeight * resolution;
+function renderPreview() {
+    if (!originalImage) return;
+
+    // 1. Calculate the preview display size
+    let previewWidth = originalImage.width;
+    let previewHeight = originalImage.height;
+    if (previewWidth > maxPreviewWidth) {
+        previewHeight = Math.floor(previewHeight * (maxPreviewWidth / previewWidth));
+        previewWidth = maxPreviewWidth;
+    }
+
+    // Set background original canvas
+    originalCanvas.width = previewWidth;
+    originalCanvas.height = previewHeight;
+    origCtx.drawImage(originalImage, 0, 0, previewWidth, previewHeight);
+
+    // 2. Calculate the processing block dimensions based on ORIGINAL scale
+    const resolution = parseInt(resolutionSlider.value);
+    let processCols = Math.max(1, Math.floor(originalImage.width / resolution));
+    let processRows = Math.max(1, Math.floor(originalImage.height / resolution));
     
+    // For the preview, cap the processing columns to prevent UI lag on massive images
+    if (processCols > maxPreviewWidth) {
+        const scale = maxPreviewWidth / processCols;
+        processCols = maxPreviewWidth;
+        processRows = Math.max(1, Math.floor(processRows * scale));
+    }
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = processCols;
+    offCanvas.height = processRows;
+    const offCtx = offCanvas.getContext('2d');
+    offCtx.drawImage(originalImage, 0, 0, processCols, processRows);
+    
+    const imageData = offCtx.getImageData(0, 0, processCols, processRows);
+    
+    const contrast = parseInt(contrastSlider.value);
+    const threshold = parseInt(thresholdSlider.value);
+    
+    // Run the actual Dither math
+    const processedData = processDither(imageData, threshold, contrast);
+    offCtx.putImageData(processedData, 0, 0);
+
+    // 3. Upscale sharply to the preview display size
+    canvas.width = previewWidth;
+    canvas.height = previewHeight;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(offCanvas, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(offCanvas, 0, 0, previewWidth, previewHeight);
+}
+
+function exportHighRes() {
+    if (!originalImage) return;
+
+    const resolution = parseInt(resolutionSlider.value);
+    const contrast = parseInt(contrastSlider.value);
+    const threshold = parseInt(thresholdSlider.value);
+
+    // 1. Exact mathematical block dimensions relative to the original image size
+    const processCols = Math.max(1, Math.floor(originalImage.width / resolution));
+    const processRows = Math.max(1, Math.floor(originalImage.height / resolution));
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = processCols;
+    offCanvas.height = processRows;
+    const offCtx = offCanvas.getContext('2d');
+    offCtx.drawImage(originalImage, 0, 0, processCols, processRows);
+
+    const imageData = offCtx.getImageData(0, 0, processCols, processRows);
+    
+    // 2. Process full scale array
+    const processedData = processDither(imageData, threshold, contrast);
+    offCtx.putImageData(processedData, 0, 0);
+
+    // 3. Create final exact-dimension export canvas
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = originalImage.width;
+    exportCanvas.height = originalImage.height;
+    const exportCtx = exportCanvas.getContext('2d');
+    
+    exportCtx.imageSmoothingEnabled = false;
+    exportCtx.drawImage(offCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    
+    // 4. Trigger download
+    exportCanvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = 'dithered-highres.png';
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+    }, 'image/png');
 }
