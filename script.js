@@ -20,6 +20,19 @@ const btnDithered = document.getElementById('btn-dithered');
 
 let originalImage = null;
 let maxPreviewWidth = 1600;
+let isOriginalView = false;
+let debounceTimeout = null;
+
+function debounce(func, delay) {
+    return function(...args) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+const debouncedProcessImage = debounce(() => {
+    if (!isOriginalView) requestAnimationFrame(processImage);
+}, 50);
 
 const ditherWorker = new Worker('worker.js');
 
@@ -62,7 +75,7 @@ fileInput.addEventListener('change', (e) => {
 [thresholdSlider, contrastSlider, resolutionSlider, blurSlider, glowSlider, tonalSlider].forEach(slider => {
     slider.addEventListener('input', (e) => {
         document.getElementById(`${e.target.id}-val`).textContent = e.target.value;
-        if (originalImage) requestAnimationFrame(processImage);
+        if (originalImage) debouncedProcessImage();
     });
 });
 
@@ -88,21 +101,29 @@ downloadBtn.addEventListener('click', () => {
 
 // --- View Toggle ---
 btnOriginal.addEventListener('click', () => {
+    isOriginalView = true;
     btnOriginal.classList.add('active');
     btnDithered.classList.remove('active');
     canvas.style.display = 'none';
+    originalCanvas.style.zIndex = '10';
 });
 
 btnDithered.addEventListener('click', () => {
+    isOriginalView = false;
     btnDithered.classList.add('active');
     btnOriginal.classList.remove('active');
     canvas.style.display = 'block';
+    originalCanvas.style.zIndex = '1';
+    if (originalImage) processImage();
 });
 
 // --- Reset ---
 const resetBtn = document.getElementById('reset-btn');
 if (resetBtn) {
     resetBtn.addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        origCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+        
         thresholdSlider.value = 128; document.getElementById('threshold-val').textContent = '128';
         contrastSlider.value = 0; document.getElementById('contrast-val').textContent = '0';
         resolutionSlider.value = 1; document.getElementById('resolution-val').textContent = '1';
@@ -110,7 +131,7 @@ if (resetBtn) {
         blurSlider.value = 0; document.getElementById('blur-val').textContent = '0';
         glowSlider.value = 0; document.getElementById('glow-val').textContent = '0';
         shapeInput.value = 'default';
-        if (originalImage) processImage();
+        if (originalImage && !isOriginalView) processImage();
     });
 }
 

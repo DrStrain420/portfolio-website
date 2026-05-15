@@ -18,7 +18,8 @@ body {
     color: var(--text-color);
     font-family: var(--font-body);
     line-height: 1.6;
-    height: 100vh;
+    width: 1920px;
+    height: 1080px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -59,7 +60,7 @@ body.global-drag-active::after {
 .app-layout {
     display: grid;
     grid-template-columns: 400px 1fr;
-    height: calc(100vh - var(--header-height));
+    height: calc(1080px - var(--header-height));
 }
 
 .controls-section {
@@ -265,24 +266,4 @@ input[type=range]::-webkit-slider-runnable-track {
 
 #canvas {
     transition: opacity 0.2s ease;
-}
-
-@media (max-width: 900px) {
-    .app-layout {
-        grid-template-columns: 1fr;
-        height: auto;
-        overflow: visible;
-    }
-    body {
-        overflow: auto;
-        height: auto;
-    }
-    .controls-section {
-        border-right: none;
-        border-bottom: var(--border-width) solid var(--text-color);
-        overflow-y: visible;
-    }
-    .preview-section {
-        height: 60vh;
-    }
 }

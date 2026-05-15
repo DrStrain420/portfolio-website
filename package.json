@@ -1,0 +1,12 @@
+{
+  "name": "ditherer",
+  "version": "1.0.0",
+  "description": "High-Res Ditherer Editorial Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^30.0.0"
+  }
+}
