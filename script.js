@@ -10,6 +10,9 @@ const downloadBtn = document.getElementById('download-btn');
 const thresholdSlider = document.getElementById('threshold');
 const contrastSlider = document.getElementById('contrast');
 const resolutionSlider = document.getElementById('resolution');
+const blurSlider = document.getElementById('blur');
+const glowSlider = document.getElementById('glow');
+const tonalSlider = document.getElementById('tonal');
 const shapeInput = document.getElementById('shape');
 
 const btnOriginal = document.getElementById('btn-original');
@@ -17,12 +20,11 @@ const btnDithered = document.getElementById('btn-dithered');
 
 const presetNewsy = document.getElementById('preset-newsy');
 const presetGlitch = document.getElementById('preset-glitch');
-const preset1bit = document.getElementById('preset-1bit');
+const presetSoftbot = document.getElementById('preset-softbot');
 
 let originalImage = null;
 let maxPreviewWidth = 1600;
 
-// Setup Worker
 const ditherWorker = new Worker('worker.js');
 
 // --- Global Drag Feedback ---
@@ -41,9 +43,7 @@ window.addEventListener('dragleave', () => {
     }
 });
 
-window.addEventListener('dragover', (e) => {
-    e.preventDefault();
-});
+window.addEventListener('dragover', (e) => { e.preventDefault(); });
 
 window.addEventListener('drop', (e) => {
     e.preventDefault();
@@ -63,7 +63,7 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // --- Sliders ---
-[thresholdSlider, contrastSlider, resolutionSlider].forEach(slider => {
+[thresholdSlider, contrastSlider, resolutionSlider, blurSlider, glowSlider, tonalSlider].forEach(slider => {
     slider.addEventListener('input', (e) => {
         document.getElementById(`${e.target.id}-val`).textContent = e.target.value;
         if (originalImage) requestAnimationFrame(renderPreview);
@@ -71,24 +71,24 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // --- Presets ---
-function applyPreset(threshold, contrast, resolution, shape) {
-    thresholdSlider.value = threshold;
-    document.getElementById('threshold-val').textContent = threshold;
-    
-    contrastSlider.value = contrast;
-    document.getElementById('contrast-val').textContent = contrast;
-    
-    resolutionSlider.value = resolution;
-    document.getElementById('resolution-val').textContent = resolution;
-    
+function applyPreset(threshold, contrast, resolution, blur, glow, tonal, shape) {
+    thresholdSlider.value = threshold; document.getElementById('threshold-val').textContent = threshold;
+    contrastSlider.value = contrast; document.getElementById('contrast-val').textContent = contrast;
+    resolutionSlider.value = resolution; document.getElementById('resolution-val').textContent = resolution;
+    blurSlider.value = blur; document.getElementById('blur-val').textContent = blur;
+    glowSlider.value = glow; document.getElementById('glow-val').textContent = glow;
+    tonalSlider.value = tonal; document.getElementById('tonal-val').textContent = tonal;
     shapeInput.value = shape;
     
     if (originalImage) renderPreview();
 }
 
-presetNewsy.addEventListener('click', () => applyPreset(160, -20, 8, 'circular'));
-presetGlitch.addEventListener('click', () => applyPreset(90, 80, 16, 'diamond'));
-preset1bit.addEventListener('click', () => applyPreset(128, 0, 4, 'default'));
+// NEWSY: Medium Blur, Low Glow, Circular Dither
+presetNewsy.addEventListener('click', () => applyPreset(160, -20, 8, 4, 5, 0, 'circular'));
+// GLITCH: No Blur, High Glow, Diamond Dither, Low Res
+presetGlitch.addEventListener('click', () => applyPreset(90, 80, 16, 0, 25, -50, 'diamond'));
+// SOFT-BOT: High Blur, High Glow, Default Dither
+presetSoftbot.addEventListener('click', () => applyPreset(128, 0, 4, 10, 30, 50, 'default'));
 
 // --- Export Logic ---
 downloadBtn.addEventListener('click', () => {
@@ -142,27 +142,29 @@ function handleFile(file) {
     reader.readAsDataURL(file);
 }
 
-// Since preview needs to be fast, we duplicate the worker logic synchronously for the small canvas
-// to avoid async jitter on the sliders.
-function applyContrastSync(data, contrast) {
-    const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-    for (let i = 0; i < data.length; i += 4) {
-        data[i] = factor * (data[i] - 128) + 128;
-        data[i+1] = factor * (data[i+1] - 128) + 128;
-        data[i+2] = factor * (data[i+2] - 128) + 128;
-    }
-}
-
-function processDitherSync(imageData, threshold, contrast, shape) {
+function processDitherSync(imageData, threshold, contrast, shape, tonal) {
     const data = imageData.data;
     const width = imageData.width;
     const height = imageData.height;
     
-    if (contrast !== 0) applyContrastSync(data, contrast);
+    if (contrast !== 0) {
+        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+        for (let i = 0; i < data.length; i += 4) {
+            data[i] = factor * (data[i] - 128) + 128;
+            data[i+1] = factor * (data[i+1] - 128) + 128;
+            data[i+2] = factor * (data[i+2] - 128) + 128;
+        }
+    }
+
+    const gamma = tonal ? Math.pow(2, -tonal / 50.0) : 1;
 
     for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i+1], b = data[i+2];
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (tonal !== 0) {
+            let normalized = gray / 255.0;
+            gray = Math.pow(normalized, gamma) * 255;
+        }
         data[i] = data[i+1] = data[i+2] = gray;
     }
 
@@ -232,15 +234,40 @@ function renderPreview() {
     offCanvas.width = processCols;
     offCanvas.height = processRows;
     const offCtx = offCanvas.getContext('2d');
+    
+    // 1. Pre-Dither Blur
+    const blurAmount = parseInt(blurSlider.value);
+    if (blurAmount > 0) {
+        offCtx.filter = `blur(${blurAmount}px)`;
+    }
     offCtx.drawImage(originalImage, 0, 0, processCols, processRows);
+    offCtx.filter = 'none'; // reset filter
     
     const imageData = offCtx.getImageData(0, 0, processCols, processRows);
+    
     const contrast = parseInt(contrastSlider.value);
     const threshold = parseInt(thresholdSlider.value);
+    const tonal = parseInt(tonalSlider.value);
     const shape = shapeInput.value;
     
-    const processedData = processDitherSync(imageData, threshold, contrast, shape);
+    // 2. Process Dither Math
+    const processedData = processDitherSync(imageData, threshold, contrast, shape, tonal);
     offCtx.putImageData(processedData, 0, 0);
+
+    // 3. Post-Dither Glow (Bloom)
+    const glowAmount = parseInt(glowSlider.value);
+    if (glowAmount > 0) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = processCols;
+        tempCanvas.height = processRows;
+        tempCanvas.getContext('2d').putImageData(processedData, 0, 0);
+        
+        offCtx.globalCompositeOperation = 'screen';
+        offCtx.filter = `blur(${glowAmount}px)`;
+        offCtx.drawImage(tempCanvas, 0, 0);
+        offCtx.globalCompositeOperation = 'source-over';
+        offCtx.filter = 'none';
+    }
 
     canvas.width = previewWidth;
     canvas.height = previewHeight;
@@ -250,6 +277,9 @@ function renderPreview() {
 
 function exportHighRes(callback) {
     const resolution = parseInt(resolutionSlider.value);
+    const blurAmount = parseInt(blurSlider.value);
+    const glowAmount = parseInt(glowSlider.value);
+    
     const processCols = Math.max(1, Math.floor(originalImage.width / resolution));
     const processRows = Math.max(1, Math.floor(originalImage.height / resolution));
 
@@ -257,14 +287,31 @@ function exportHighRes(callback) {
     offCanvas.width = processCols;
     offCanvas.height = processRows;
     const offCtx = offCanvas.getContext('2d');
+    
+    if (blurAmount > 0) {
+        offCtx.filter = `blur(${blurAmount}px)`;
+    }
     offCtx.drawImage(originalImage, 0, 0, processCols, processRows);
+    offCtx.filter = 'none';
 
     const imageData = offCtx.getImageData(0, 0, processCols, processRows);
     
-    // Offload to Web Worker
     ditherWorker.onmessage = function(e) {
         const processedData = e.data.processedData;
         offCtx.putImageData(processedData, 0, 0);
+        
+        if (glowAmount > 0) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = processCols;
+            tempCanvas.height = processRows;
+            tempCanvas.getContext('2d').putImageData(processedData, 0, 0);
+            
+            offCtx.globalCompositeOperation = 'screen';
+            offCtx.filter = `blur(${glowAmount}px)`;
+            offCtx.drawImage(tempCanvas, 0, 0);
+            offCtx.globalCompositeOperation = 'source-over';
+            offCtx.filter = 'none';
+        }
         
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = originalImage.width;
@@ -282,6 +329,7 @@ function exportHighRes(callback) {
         imageData: imageData,
         threshold: parseInt(thresholdSlider.value),
         contrast: parseInt(contrastSlider.value),
+        tonal: parseInt(tonalSlider.value),
         shape: shapeInput.value
     });
 }
