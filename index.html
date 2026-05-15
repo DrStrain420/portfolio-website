@@ -8,16 +8,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Helvetica+Neue:wght@700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="app-header">
-        <h1>DITHERER</h1>
-        <p>A pure 1-bit Floyd-Steinberg error diffusion utility.</p>
-    </header>
-
     <main class="app-layout">
         <section class="controls-section">
             <div id="drop-zone" class="drop-zone">
-                <p>DRAG & DROP IMAGE</p>
-                <p class="subtext">or click to browse</p>
+                <p>UPLOAD IMAGE</p>
                 <input type="file" id="file-input" accept="image/png, image/jpeg, image/webp" hidden>
             </div>
 
@@ -30,19 +24,21 @@
                     <label for="contrast">CONTRAST: <span id="contrast-val">0</span></label>
                     <input type="range" id="contrast" min="-100" max="100" value="0">
                 </div>
+                <div class="slider-group">
+                    <label for="resolution">RESOLUTION: <span id="resolution-val">1</span></label>
+                    <input type="range" id="resolution" min="1" max="20" value="1">
+                </div>
             </div>
 
-            <button id="download-btn" class="action-btn" disabled>DOWNLOAD PNG</button>
+            <button id="download-btn" class="action-btn" disabled>EXPORT PNG</button>
         </section>
 
         <section class="preview-section">
             <div class="canvas-container">
                 <canvas id="canvas"></canvas>
-                <div id="placeholder-text">PREVIEW</div>
             </div>
         </section>
     </main>
-
     <script src="script.js"></script>
 </body>
 </html>
