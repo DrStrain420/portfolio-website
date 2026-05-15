@@ -178,37 +178,6 @@ input[type=range]::-webkit-slider-runnable-track {
     border: 2px solid currentColor;
 }
 
-/* Presets */
-.presets {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.preset-group {
-    display: flex;
-    gap: 1rem;
-}
-
-.preset-btn {
-    flex: 1;
-    background: transparent;
-    color: currentColor;
-    border: 2px solid currentColor;
-    padding: 0.75rem 0.5rem;
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 0.9rem;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: all 0.2s;
-}
-
-.preset-btn:hover {
-    background-color: currentColor;
-    color: var(--bg-color);
-}
-
 /* Toggles and Buttons */
 .view-toggle {
     display: flex;

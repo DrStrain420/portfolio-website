@@ -18,10 +18,6 @@ const shapeInput = document.getElementById('shape');
 const btnOriginal = document.getElementById('btn-original');
 const btnDithered = document.getElementById('btn-dithered');
 
-const presetNewsy = document.getElementById('preset-newsy');
-const presetGlitch = document.getElementById('preset-glitch');
-const presetSoftbot = document.getElementById('preset-softbot');
-
 let originalImage = null;
 let maxPreviewWidth = 1600;
 
@@ -69,26 +65,6 @@ fileInput.addEventListener('change', (e) => {
         if (originalImage) requestAnimationFrame(renderPreview);
     });
 });
-
-// --- Presets ---
-function applyPreset(threshold, contrast, resolution, blur, glow, tonal, shape) {
-    thresholdSlider.value = threshold; document.getElementById('threshold-val').textContent = threshold;
-    contrastSlider.value = contrast; document.getElementById('contrast-val').textContent = contrast;
-    resolutionSlider.value = resolution; document.getElementById('resolution-val').textContent = resolution;
-    blurSlider.value = blur; document.getElementById('blur-val').textContent = blur;
-    glowSlider.value = glow; document.getElementById('glow-val').textContent = glow;
-    tonalSlider.value = tonal; document.getElementById('tonal-val').textContent = tonal;
-    shapeInput.value = shape;
-    
-    if (originalImage) renderPreview();
-}
-
-// NEWSY: Medium Blur, Low Glow, Circular Dither
-presetNewsy.addEventListener('click', () => applyPreset(160, -20, 8, 4, 5, 0, 'circular'));
-// GLITCH: No Blur, High Glow, Diamond Dither, Low Res
-presetGlitch.addEventListener('click', () => applyPreset(90, 80, 16, 0, 25, -50, 'diamond'));
-// SOFT-BOT: High Blur, High Glow, Default Dither
-presetSoftbot.addEventListener('click', () => applyPreset(128, 0, 4, 10, 30, 50, 'default'));
 
 // --- Export Logic ---
 downloadBtn.addEventListener('click', () => {
